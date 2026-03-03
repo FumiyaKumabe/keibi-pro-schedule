@@ -147,7 +147,11 @@
         const target = state.tasks.find(t => t.id === id);
         if(target) target.name = value;
       }
-      render();
+      
+      // 入力中はDOMの再構築（render()）を行わず、document.titleのみ更新することでIME入力のバグを回避
+      const safeClientName = state.clientName.replace(/\s+/g, '_');
+      const safeTitle = state.title.replace(/\s+/g, '_');
+      document.title = `${safeClientName}_${safeTitle}`;
     }
 
     function toggleCell(taskId, monthId) {
