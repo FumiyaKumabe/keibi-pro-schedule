@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>稼働スケジュール表</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 印刷用のスタイル調整 */
+    @media print {
+      @page { size: landscape; margin: 10mm 20mm; }
+      body { 
+        background-color: #fff !important; 
+        -webkit-print-color-adjust: exact; 
+        print-color-adjust: exact; 
+      }
+      .print-hidden { display: none !important; }
+      .print-overflow-visible { overflow: visible !important; }
+      input { color: #1f2937 !important; }
+    }
+    
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; border: 2px solid #f9fafb; }
+    ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+    
+    .cell-transition { transition: all 0.2s ease-in-out; }
+  </style>
+</head>
+<body class="bg-gray-100 print:bg-white min-h-screen p-4 md:p-8 print:py-8 print:px-12 font-sans text-gray-800 selection:bg-blue-200">
+
+  <div id="app" class="max-w-6xl mx-auto w-full"></div>
+
+  <script>
+    const Icons = {
+      Plus: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>`,
+      Trash: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>`,
+      TrashSmall: `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`,
+      ArrowRight: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>`,
+      Up: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>`,
+      Down: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>`,
+      Printer: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>`,
+      Info: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`,
+      Refresh: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+      Template: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>`
+    };
+
+    const Palette = [
+      '#3b82f6', '#10b981', '#f43f5e', '#f59e0b', 
+      '#8b5cf6', '#06b6d4', '#84cc16', '#ec4899'
+    ];
+
+    function getTodayString() {
+      const d = new Date();
+      return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+    }
+
+    // --- テンプレートのデータ定義 ---
+    const templateTasks = {
+      // 中期稼働（デフォルト）
+      medium: [
+        { id: 't1', name: '納品/マスタ関連サポート', active: ['m1', 'm2'], arrow: false },
+        { id: 't2', name: '勤務関連サポート', active: ['m2'], arrow: false },
+        { id: 't3', name: '請求関連サポート', active: ['m3'], arrow: false },
+        { id: 't4', name: '給与関連サポート', active: ['m4'], arrow: false },
+        { id: 't5', name: 'テスト運用', active: ['m2', 'm3', 'm4'], arrow: false },
+        { id: 't6', name: '本稼働', active: ['m5', 'm6'], arrow: true },
+      ],
+      // 短期稼働
+      short: [
+        { id: 't1', name: '納品/マスタ関連サポート', active: ['m1'], arrow: false },
+        { id: 't2', name: '勤務関連サポート', active: ['m1'], arrow: false },
+        { id: 't3', name: '請求関連サポート', active: ['m2'], arrow: false },
+        { id: 't4', name: '給与関連サポート', active: ['m2'], arrow: false },
+        { id: 't5', name: 'テスト運用', active: ['m2', 'm3'], arrow: false },
+        { id: 't6', name: '本稼働', active: ['m4', 'm5', 'm6'], arrow: true },
+      ]
+    };
+
+    const defaultState = {
+      title: '警備Pro稼働スケジュール予定表',
+      clientName: '株式会社〇〇 御中',
+      authorName: '株式会社 ビジコン・ジャパン',
+      personInCharge: '隈部 文哉',
+      creationDate: getTodayString(),
+      footerNote: '※マスタが整い次第、順次サポートとなります',
+      disclaimerNote: '※本スケジュールは予定であり、進捗により予定が変更となる可能性があります',
+      months: [
+        { id: 'm1', name: '4月' },
+        { id: 'm2', name: '5月' },
+        { id: 'm3', name: '6月' },
+        { id: 'm4', name: '7月' },
+        { id: 'm5', name: '8月' },
+        { id: 'm6', name: '9月' },
+      ],
+      // 初期値は中期稼働をセット
+      tasks: JSON.parse(JSON.stringify(templateTasks.medium))
+    };
+
+    let state = JSON.parse(JSON.stringify(defaultState));
+    let focusedElementId = null;
+    let selectionStart = 0;
+    let selectionEnd = 0;
+
+    // --- 印刷時の自動縮小処理 ---
+    window.addEventListener('beforeprint', () => {
+      const printArea = document.getElementById('print-area');
+      if (!printArea) return;
+      printArea.style.zoom = '1';
+      const rect = printArea.getBoundingClientRect();
+      const MAX_WIDTH = 970;
+      const MAX_HEIGHT = 700;
+      let scale = 1;
+      if (rect.height > MAX_HEIGHT || rect.width > MAX_WIDTH) {
+        const scaleH = MAX_HEIGHT / rect.height;
+        const scaleW = MAX_WIDTH / rect.width;
+        scale = Math.min(scaleH, scaleW, 1); 
+        printArea.style.zoom = scale;
+      }
+    });
+
+    window.addEventListener('afterprint', () => {
+      const printArea = document.getElementById('print-area');
+      if (printArea) printArea.style.zoom = '1';
+    });
+
+    // --- エスケープ処理 ---
+    function escapeHTML(str) {
+      if (typeof str !== 'string') return str;
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // --- データ操作用関数 ---
+    function handleInput(field, id, value) {
+      if (field === 'title') state.title = value;
+      else if (field === 'clientName') state.clientName = value;
+      else if (field === 'authorName') state.authorName = value;
+      else if (field === 'personInCharge') state.personInCharge = value;
+      else if (field === 'creationDate') state.creationDate = value;
+      else if (field === 'footerNote') state.footerNote = value;
+      else if (field === 'disclaimerNote') state.disclaimerNote = value;
+      else if (field === 'monthName') {
+        const target = state.months.find(m => m.id === id);
+        if(target) target.name = value;
+      }
+      else if (field === 'taskName') {
+        const target = state.tasks.find(t => t.id === id);
+        if(target) target.name = value;
+      }
+      render();
+    }
+
+    function toggleCell(taskId, monthId) {
+      const task = state.tasks.find(t => t.id === taskId);
+      if (task.active.includes(monthId)) {
+        task.active = task.active.filter(id => id !== monthId);
+      } else {
+        task.active.push(monthId);
+      }
+      render();
+    }
+
+    function toggleArrow(taskId, value) {
+      const task = state.tasks.find(t => t.id === taskId);
+      task.arrow = value;
+      render();
+    }
+
+    function addTask() {
+      state.tasks.push({ id: 't' + Date.now(), name: '新規項目', active: [], arrow: false });
+      render();
+    }
+
+    function removeTask(taskId) {
+      state.tasks = state.tasks.filter(t => t.id !== taskId);
+      render();
+    }
+
+    function moveTask(index, direction) {
+      if ((direction === -1 && index === 0) || (direction === 1 && index === state.tasks.length - 1)) return;
+      const temp = state.tasks[index];
+      state.tasks[index] = state.tasks[index + direction];
+      state.tasks[index + direction] = temp;
+      render();
+    }
+
+    function addMonth() {
+      state.months.push({ id: 'm' + Date.now(), name: '新規月' });
+      render();
+    }
+
+    function removeMonth(monthId) {
+      if (state.months.length <= 1) return; 
+      state.months = state.months.filter(m => m.id !== monthId);
+      state.tasks.forEach(t => t.active = t.active.filter(id => id !== monthId));
+      render();
+    }
+
+    // ★ テンプレート適用関数
+    function applyTemplate(type) {
+      const typeName = type === 'medium' ? '【中期稼働】' : '【短期稼働】';
+      if (confirm(`${typeName} のスケジュールテンプレートを適用しますか？\n（現在のタスクやバーの配置は上書きされます）`)) {
+        // 月の数は6ヶ月（m1〜m6）にリセット
+        state.months = [
+          { id: 'm1', name: '4月' },
+          { id: 'm2', name: '5月' },
+          { id: 'm3', name: '6月' },
+          { id: 'm4', name: '7月' },
+          { id: 'm5', name: '8月' },
+          { id: 'm6', name: '9月' },
+        ];
+        // タスクの配列をディープコピーして適用
+        state.tasks = JSON.parse(JSON.stringify(templateTasks[type]));
+        render();
+      }
+    }
+
+    function resetData() {
+      if (confirm('入力内容をすべて初期状態に戻しますか？\n（この操作は取り消せません）')) {
+        state = JSON.parse(JSON.stringify(defaultState));
+        state.creationDate = getTodayString();
+        render();
+      }
+    }
+
+    function handlePrint() {
+      window.print();
+    }
+
+    function render() {
+      const safeClientName = state.clientName.replace(/\s+/g, '_');
+      const safeTitle = state.title.replace(/\s+/g, '_');
+      document.title = `${safeClientName}_${safeTitle}`;
+
+      const activeEl = document.activeElement;
+      if (activeEl && activeEl.id) {
+        focusedElementId = activeEl.id;
+        selectionStart = activeEl.selectionStart;
+        selectionEnd = activeEl.selectionEnd;
+      } else {
+        focusedElementId = null;
+      }
+
+      const appDiv = document.getElementById('app');
+      
+      let html = `
+        <div class="print-hidden mb-6 bg-white border border-gray-200 rounded-2xl p-5 flex items-start text-sm text-gray-600 shadow-sm transition-shadow hover:shadow-md">
+          <div class="text-blue-500 mr-3 flex-shrink-0 mt-0.5">${Icons.Info}</div>
+          <div class="flex-grow">
+            <p class="font-bold text-gray-800 mb-1 text-base">スケジュール表の編集</p>
+            <ul class="list-none space-y-1.5 ml-0">
+              <li class="flex items-center"><span class="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></span><strong>テキスト変更:</strong> 文字をクリックして直接書き換えます。</li>
+              <li class="flex items-center"><span class="w-1.5 h-1.5 bg-blue-400 rounded-full mr-2"></span><strong>バーの編集:</strong> 表のマス目をクリックすると色がつきます。</li>
+            </ul>
+          </div>
+          <button onclick="handlePrint()" class="ml-4 flex items-center bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl shadow-md transition-all active:scale-95 font-medium whitespace-nowrap">
+            <span class="mr-2">${Icons.Printer}</span>印刷 / PDF
+          </button>
+        </div>
+
+        <div id="print-area" class="bg-white rounded-[24px] print:rounded-2xl shadow-xl print:shadow-none border border-gray-200 print:border-gray-300 overflow-hidden transform origin-top left">
+          
+          <div class="p-8 md:p-10 print:px-10 print:py-8 bg-gray-50/50 print:bg-white border-b border-gray-200">
+            <div class="flex flex-col md:flex-row justify-between items-start mb-4 gap-4">
+              <div class="w-full md:w-1/2">
+                <input id="input-client" value="${escapeHTML(state.clientName)}" oninput="handleInput('clientName', null, this.value)" class="text-xl font-bold w-full bg-transparent border-2 border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 rounded-lg px-2 py-1 outline-none transition-all text-gray-800" />
+              </div>
+              <div class="w-full md:w-1/3 flex justify-start md:justify-end">
+                <div class="flex items-center text-sm text-gray-600">
+                  <span class="mr-1">作成日:</span>
+                  <input id="input-date" value="${escapeHTML(state.creationDate)}" oninput="handleInput('creationDate', null, this.value)" class="w-32 md:text-right bg-transparent border-2 border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 rounded px-2 py-0.5 outline-none transition-all" />
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-8 text-center">
+              <input id="input-title" value="${escapeHTML(state.title)}" oninput="handleInput('title', null, this.value)" class="text-2xl md:text-3xl font-extrabold text-center w-full max-w-2xl bg-transparent border-2 border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 rounded-xl px-4 py-2 outline-none transition-all text-gray-900" />
+            </div>
+
+            <div class="flex justify-end">
+              <div class="flex flex-col items-start md:items-end w-full md:w-1/2 gap-0.5">
+                <input id="input-author" value="${escapeHTML(state.authorName)}" oninput="handleInput('authorName', null, this.value)" class="text-base font-medium text-gray-700 w-full md:text-right bg-transparent border-2 border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 rounded-lg px-2 py-1 outline-none transition-all" />
+                <div class="flex items-center text-sm font-medium text-gray-700 w-full justify-start md:justify-end">
+                  <span class="mr-1">担当:</span>
+                  <input id="input-pic" value="${escapeHTML(state.personInCharge)}" oninput="handleInput('personInCharge', null, this.value)" class="w-40 md:text-right bg-transparent border-2 border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 rounded px-2 py-1 outline-none transition-all" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto print-overflow-visible">
+            <table class="w-full border-collapse text-sm">
+              <thead>
+                <tr class="bg-gray-50 text-gray-700">
+                  <th class="border border-gray-200 p-3 w-64 font-bold text-center">項目名</th>
+      `;
+
+      state.months.forEach(m => {
+        html += `
+          <th class="border border-gray-200 p-1 min-w-[6rem] w-24 relative group">
+            <input id="month-${m.id}" value="${escapeHTML(m.name)}" oninput="handleInput('monthName', '${m.id}', this.value)" class="w-full text-center bg-transparent border-2 border-transparent hover:bg-white hover:border-gray-200 focus:bg-white focus:border-blue-500 rounded-md py-1 outline-none font-bold text-gray-700 transition-all" />
+            <button onclick="removeMonth('${m.id}')" class="print-hidden absolute -top-1 -right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10" title="月を削除">${Icons.TrashSmall}</button>
+          </th>
+        `;
+      });
+
+      html += `
+                  <th class="border border-gray-200 p-2 w-16 text-center"><span class="text-xs font-semibold text-gray-400">継続</span></th>
+                  <th class="print-hidden border border-gray-200 p-3 w-28 text-center">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+
+      state.tasks.forEach((task, index) => {
+        const rowColor = Palette[index % Palette.length];
+        html += `
+          <tr class="bg-white hover:bg-gray-50/50 transition-colors group">
+            <td class="border border-gray-200 p-2 align-middle">
+              <input id="task-name-${task.id}" value="${escapeHTML(task.name)}" oninput="handleInput('taskName', '${task.id}', this.value)" class="w-full bg-transparent border-2 border-transparent hover:bg-gray-50 hover:border-gray-200 focus:bg-white focus:border-blue-500 rounded-md px-2 py-1.5 outline-none font-semibold text-gray-800 transition-all" />
+            </td>
+        `;
+
+        state.months.forEach((month, mIndex) => {
+          const isActive = task.active.includes(month.id);
+          const isPrevActive = mIndex > 0 && task.active.includes(state.months[mIndex - 1].id);
+          const isNextActive = mIndex < state.months.length - 1 && task.active.includes(state.months[mIndex + 1].id);
+          
+          let barClass = "h-7 flex items-center justify-center cell-transition ";
+          let barStyle = "";
+          
+          if (isActive) {
+            barStyle = `background-color: ${rowColor};`;
+            barClass += "shadow-sm print:shadow-none ";
+            if (isPrevActive) barClass += "ml-0.5 rounded-l-none "; else barClass += "ml-2 rounded-l-full ";
+            if (isNextActive) barClass += "mr-0.5 rounded-r-none "; else barClass += "mr-2 rounded-r-full ";
+          } else {
+            barClass += "mx-2 hover:bg-gray-200/50 rounded-full";
+          }
+
+          html += `
+            <td onclick="toggleCell('${task.id}', '${month.id}')" class="border border-gray-200 p-0 cursor-pointer">
+              <div class="${barClass}" style="${barStyle}"></div>
+            </td>
+          `;
+        });
+
+        html += `
+            <td class="border border-gray-200 p-0 text-center align-middle relative">
+              <div class="flex justify-center items-center h-full min-h-[3rem]">
+                ${task.arrow ? `
+                  <div class="cell-transition" style="color: ${rowColor}">${Icons.ArrowRight}</div>
+                  <button onclick="toggleArrow('${task.id}', false)" class="print-hidden absolute inset-0 w-full h-full opacity-0 hover:opacity-100 bg-gray-100/90 flex items-center justify-center text-xs text-gray-600 font-bold transition-opacity">消す</button>
+                ` : `
+                  <button onclick="toggleArrow('${task.id}', true)" class="print-hidden w-full h-full text-transparent hover:text-gray-400 flex justify-center items-center transition-colors" title="矢印を追加">${Icons.Plus}</button>
+                `}
+              </div>
+            </td>
+            <td class="print-hidden border border-gray-200 p-2 align-middle">
+              <div class="flex justify-center items-center gap-1 opacity-20 group-hover:opacity-100 transition-opacity">
+                <button onclick="moveTask(${index}, -1)" ${index === 0 ? 'disabled' : ''} class="p-1.5 rounded-lg text-gray-400 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer transition-colors" title="上へ">${Icons.Up}</button>
+                <button onclick="moveTask(${index}, 1)" ${index === state.tasks.length - 1 ? 'disabled' : ''} class="p-1.5 rounded-lg text-gray-400 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer transition-colors" title="下へ">${Icons.Down}</button>
+                <button onclick="removeTask('${task.id}')" class="p-1.5 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 cursor-pointer ml-1 transition-colors" title="削除">${Icons.Trash}</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="px-6 py-4 print:px-10 print:py-6 bg-white flex flex-col gap-1">
+            <input id="input-footer" value="${escapeHTML(state.footerNote)}" oninput="handleInput('footerNote', null, this.value)" class="w-full text-sm text-gray-600 font-medium bg-transparent border-none outline-none hover:bg-gray-50 focus:bg-gray-50 rounded px-2 py-1 transition-colors" placeholder="表の補足を入力..." />
+            <input id="input-disclaimer" value="${escapeHTML(state.disclaimerNote)}" oninput="handleInput('disclaimerNote', null, this.value)" class="w-full text-sm text-gray-600 font-medium bg-transparent border-none outline-none hover:bg-gray-50 focus:bg-gray-50 rounded px-2 py-1 transition-colors" placeholder="免責事項などを入力..." />
+          </div>
+          
+          <div class="print-hidden p-6 bg-gray-50/50 border-t border-gray-200 flex flex-col gap-4">
+            
+            <div class="flex flex-wrap gap-3 pb-4 border-b border-gray-200">
+              <span class="text-sm font-bold text-gray-500 flex items-center w-full md:w-auto md:mr-2">テンプレート読込:</span>
+              <button onclick="applyTemplate('medium')" class="flex items-center px-4 py-2 border border-blue-200 rounded-lg text-sm font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-300 transition-colors">
+                <span class="mr-1.5">${Icons.Template}</span>中期稼働 (4ヶ月)
+              </button>
+              <button onclick="applyTemplate('short')" class="flex items-center px-4 py-2 border border-emerald-200 rounded-lg text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-colors">
+                <span class="mr-1.5">${Icons.Template}</span>短期稼働 (3ヶ月)
+              </button>
+            </div>
+
+            <div class="flex flex-wrap justify-between items-center gap-4">
+              <div class="flex flex-wrap gap-3">
+                <button onclick="addTask()" class="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                  <span class="mr-1.5 text-gray-500">${Icons.Plus}</span>行を追加
+                </button>
+                <button onclick="addMonth()" class="flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                  <span class="mr-1.5 text-gray-500">${Icons.Plus}</span>列を追加
+                </button>
+              </div>
+              
+              <button onclick="resetData()" class="flex items-center px-4 py-2 border border-red-200 rounded-lg text-sm font-bold text-red-500 bg-white hover:bg-red-50 hover:border-red-300 transition-colors">
+                <span class="mr-1.5">${Icons.Refresh}</span>データをリセット
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      appDiv.innerHTML = html;
+
+      if (focusedElementId) {
+        const el = document.getElementById(focusedElementId);
+        if (el) {
+          el.focus();
+          try { el.setSelectionRange(selectionStart, selectionEnd); } catch(e) {}
+        }
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>
