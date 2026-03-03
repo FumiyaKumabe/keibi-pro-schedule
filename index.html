@@ -57,7 +57,7 @@
 
     // --- テンプレートのデータ定義 ---
     const templateTasks = {
-      // 中期稼働（デフォルト）
+      // 中期稼働
       medium: [
         { id: 't1', name: '納品/マスタ関連サポート', active: ['m1', 'm2'], arrow: false },
         { id: 't2', name: '勤務関連サポート', active: ['m2'], arrow: false },
@@ -66,7 +66,7 @@
         { id: 't5', name: 'テスト運用', active: ['m2', 'm3', 'm4'], arrow: false },
         { id: 't6', name: '本稼働', active: ['m5', 'm6'], arrow: true },
       ],
-      // 短期稼働
+      // 通常稼働（3ヶ月）
       short: [
         { id: 't1', name: '納品/マスタ関連サポート', active: ['m1'], arrow: false },
         { id: 't2', name: '勤務関連サポート', active: ['m1'], arrow: false },
@@ -93,8 +93,8 @@
         { id: 'm5', name: '8月' },
         { id: 'm6', name: '9月' },
       ],
-      // 初期値は中期稼働をセット
-      tasks: JSON.parse(JSON.stringify(templateTasks.medium))
+      // 初期値は通常稼働をセット
+      tasks: JSON.parse(JSON.stringify(templateTasks.short))
     };
 
     let state = JSON.parse(JSON.stringify(defaultState));
@@ -202,7 +202,7 @@
 
     // ★ テンプレート適用関数
     function applyTemplate(type) {
-      const typeName = type === 'medium' ? '【中期稼働】' : '【短期稼働】';
+      const typeName = type === 'medium' ? '【中期稼働】' : '【通常稼働】';
       if (confirm(`${typeName} のスケジュールテンプレートを適用しますか？\n（現在のタスクやバーの配置は上書きされます）`)) {
         // 月の数は6ヶ月（m1〜m6）にリセット
         state.months = [
@@ -389,7 +389,7 @@
                 <span class="mr-1.5">${Icons.Template}</span>中期稼働 (4ヶ月)
               </button>
               <button onclick="applyTemplate('short')" class="flex items-center px-4 py-2 border border-emerald-200 rounded-lg text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-300 transition-colors">
-                <span class="mr-1.5">${Icons.Template}</span>短期稼働 (3ヶ月)
+                <span class="mr-1.5">${Icons.Template}</span>通常稼働 (3ヶ月)
               </button>
             </div>
 
